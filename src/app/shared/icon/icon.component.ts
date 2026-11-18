@@ -10,7 +10,7 @@ import { IconName } from './icon-name';
       [attr.role]="label ? 'img' : null"
       [attr.aria-label]="label || null"
       [attr.aria-hidden]="label ? null : 'true'">
-      <use [attr.href]="'assets/icons/icons.svg#icon-' + name"></use>
+      <use [attr.href]="'src/assets/icons/icons.svg#icon-' + name"></use>
     </svg>
   `
 })

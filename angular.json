@@ -12,7 +12,7 @@
         "build": {
           "builder": "@angular/build:application",
           "options": {
-            "assets": ["src/assets"],
+            "assets": [{ "glob": "**/*", "input": "src/assets", "output": "src/assets" }],
             "outputPath": "dist/marcly-afro-style",
             "index": "src/index.html",
             "browser": "src/main.ts",

@@ -6,7 +6,7 @@
 *.log
 
 # Bundles gerados por builds locais devem ficar fora da raiz do projeto.
-# Os arquivos publicados pelo GitHub Pages ficam organizados em assets/js e assets/css.
+# Os arquivos publicados pelo GitHub Pages ficam organizados em src/assets.
 /chunk-*.js
 /main-*.js
 /polyfills-*.js

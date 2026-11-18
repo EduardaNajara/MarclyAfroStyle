@@ -19,7 +19,7 @@ import { IconComponent } from '../../shared/icon/icon.component';
         <section class="login-card" aria-labelledby="login-title">
           <header class="login-brand-header">
             <div class="login-logo-frame">
-              <img class="login-logo" src="assets/logo-b.png" alt="Logo Marcly Afro Style">
+              <img class="login-logo" src="src/assets/logo-b.png" alt="Logo Marcly Afro Style">
             </div>
             <h1 id="login-title" class="login-brand-name">Marcly</h1>
             <span class="login-brand-caption">Afro Style</span>

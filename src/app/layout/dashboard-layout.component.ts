@@ -11,7 +11,7 @@ import { IconName } from '../shared/icon/icon-name';
     <div class="app-shell flex min-h-screen">
       <aside class="sidebar flex shrink-0 flex-col" aria-label="Menu do ateliê">
         <a class="brand" routerLink="/inicio" aria-label="Marcly Afro Style, início">
-          <img class="brand-mark" src="assets/logo-w.png" alt="">
+          <img class="brand-mark" src="src/assets/logo-w.png" alt="">
           <span class="brand-name">Marcly</span>
           <span class="brand-caption">AFRO STYLE</span>
         </a>
