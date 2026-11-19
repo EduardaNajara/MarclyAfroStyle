@@ -1,5 +1,5 @@
 ﻿# Etapa de build
-FROM mcr.microsoft.com/dotnet/sdk:8.0 AS build
+FROM mcr.microsoft.com/dotnet/sdk:9.0 AS build
 WORKDIR /src
 
 # Copia o arquivo de projeto e restaura as dependências
@@ -11,11 +11,10 @@ COPY . .
 RUN dotnet publish "MarclyAfroStyle.Api.csproj" -c Release -o /app/publish
 
 # Etapa de execução (runtime)
-FROM mcr.microsoft.com/dotnet/aspnet:8.0 AS final
+FROM mcr.microsoft.com/dotnet/aspnet:9.0 AS final
 WORKDIR /app
 COPY --from=build /app/publish .
 
-# O Render e o .NET 8 utilizam a porta 8080 por padrão em containers
 ENV ASPNETCORE_URLS=http://+:8080
 EXPOSE 8080
 
