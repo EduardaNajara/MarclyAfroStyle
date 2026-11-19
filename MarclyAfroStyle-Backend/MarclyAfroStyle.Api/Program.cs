@@ -22,7 +22,7 @@ builder.Services.AddCors(options =>
     {
         policy.WithOrigins(
                 "http://localhost:4200",
-                "https://marclyafrostyle.netlify.app"
+                "https://marclya-frostyle.netlify.app"
               )
               .AllowAnyHeader()
               .AllowAnyMethod();
