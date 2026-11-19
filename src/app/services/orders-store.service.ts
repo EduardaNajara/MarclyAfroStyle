@@ -5,7 +5,7 @@ import { OrderRecord } from '../models/pages/order.model';
 
 @Injectable({ providedIn: 'root' })
 export class OrdersStoreService {
-  private apiUrl = 'http://localhost:5185/api/pedidos';
+  private apiUrl = 'https://marcly-api.onrender.com/api/pedidos';
   orders: OrderRecord[] = [];
 
   constructor(private http: HttpClient) {}

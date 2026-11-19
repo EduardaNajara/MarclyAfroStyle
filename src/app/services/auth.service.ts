@@ -12,7 +12,7 @@ export interface AuthenticatedUser {
 
 @Injectable({ providedIn: 'root' })
 export class AuthService {
-  private readonly apiUrl = 'http://localhost:5185/api/auth';
+  private readonly apiUrl = 'https://marcly-api.onrender.com/api/auth';
   private readonly storageKey = 'marcly_auth_user';
 
   readonly userSignal = signal<AuthenticatedUser | null>(this.readFromStorage());

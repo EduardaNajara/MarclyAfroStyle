@@ -307,8 +307,8 @@ interface NewUserDraft {
   `
 })
 export class SettingsPageComponent implements OnInit {
-  private readonly configApiUrl = 'http://localhost:5185/api/configuracoes';
-  private readonly usersApiUrl = 'http://localhost:5185/api/usuarios';
+  private readonly configApiUrl = 'https://marcly-api.onrender.com/api/configuracoes';
+  private readonly usersApiUrl = 'https://marcly-api.onrender.com/api/usuarios';
 
   readonly currentDateLabel = new Intl.DateTimeFormat('pt-BR', {
     day: 'numeric',

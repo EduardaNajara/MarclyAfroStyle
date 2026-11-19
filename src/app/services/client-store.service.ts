@@ -5,7 +5,7 @@ import { Client } from '../models/pages/client.model';
 
 @Injectable({ providedIn: 'root' })
 export class ClientStoreService {
-  private apiUrl = 'http://localhost:5185/api/clientes';
+  private apiUrl = 'https://marcly-api.onrender.com/api/clientes';
   clients: Client[] = [];
 
   constructor(private http: HttpClient) {}
