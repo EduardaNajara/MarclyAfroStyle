@@ -1,11 +1,13 @@
-import { Component } from '@angular/core';
+import { Component, OnInit } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { DashboardMetric } from '../../models/pages/dashboard.model';
-import { Order, OrderStatus } from '../../models/pages/order.model';
+import { Order, OrderRecord, OrderStatus } from '../../models/pages/order.model';
+import { OrdersStoreService } from '../../services/orders-store.service';
 import { IconComponent } from '../../shared/icon/icon.component';
 
 interface DashboardOrder extends Order {
   priority: 'Prioritário' | 'Normal';
+  deliveryIso?: string;
 }
 
 interface UpcomingDelivery {
@@ -66,7 +68,7 @@ interface UpcomingDelivery {
             </tbody>
           </table>
         </div>
-        <div class="table-footer"><span>{{ orders.length }} pedidos recentes</span><a routerLink="/pedidos">Ver todos <app-icon name="chevron" /></a></div>
+        <div class="table-footer"><span>{{ orders.length }} {{ orders.length === 1 ? 'pedido recente' : 'pedidos recentes' }}</span><a routerLink="/pedidos">Ver todos <app-icon name="chevron" /></a></div>
       </section>
 
       <aside class="right-column dashboard-widgets grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-1" aria-label="Resumo de entregas e calendário">
@@ -85,7 +87,7 @@ interface UpcomingDelivery {
         </section>
 
         <section class="panel calendar-panel" aria-labelledby="calendar-title">
-          <div class="calendar-heading"><h2 id="calendar-title">Calendário</h2><button type="button" aria-label="Abrir calendário completo"><app-icon name="chevron" /></button></div>
+          <div class="calendar-heading"><h2 id="calendar-title">Calendário</h2><button type="button" routerLink="/pedidos" aria-label="Abrir pedidos"><app-icon name="chevron" /></button></div>
           <div class="calendar-month">
             <button type="button" aria-label="Mês anterior" (click)="changeMonth(-1)"><app-icon class="calendar-arrow previous" name="chevron" /></button>
             <strong>{{ calendarTitle }}</strong>
@@ -109,40 +111,102 @@ interface UpcomingDelivery {
     </div>
   `
 })
-export class HomePageComponent {
-  readonly metrics: DashboardMetric[] = [
-    { label: 'Total de pedidos', value: 12, icon: 'orders', tone: 'rose' },
-    { label: 'Corte & tecido', value: 2, icon: 'scissors', tone: 'gold' },
-    { label: '1ª prova realizada', value: 2, icon: 'fitting', tone: 'lilac' },
-    { label: 'Em produção', value: 4, icon: 'production', tone: 'blue' },
-    { label: 'Pronto p/ entrega', value: 2, icon: 'ready', tone: 'green' },
-    { label: 'Entregues', value: 2, icon: 'package', tone: 'peach' }
+export class HomePageComponent implements OnInit {
+  private readonly validStatuses: OrderStatus[] = [
+    'Corte & tecido',
+    '1ª prova realizada',
+    'Em produção',
+    'Pronto p/ entrega',
+    'Entregue',
+    'Pago'
   ];
-  readonly orders: DashboardOrder[] = [
-    { id: 'PED-012', client: 'Ana Beatriz', service: 'Vestido sob medida', createdAt: '12/11/2026', deliveryDate: '21/11/2026', status: 'Em produção', value: 480, initials: 'AB', priority: 'Prioritário' },
-    { id: 'PED-011', client: 'Daiane Ferreira', service: 'Conjunto estampado', createdAt: '11/11/2026', deliveryDate: '22/11/2026', status: '1ª prova realizada', value: 360, initials: 'DF', priority: 'Normal' },
-    { id: 'PED-010', client: 'Tatiana Souza', service: 'Saia envelope', createdAt: '10/11/2026', deliveryDate: '24/11/2026', status: 'Corte & tecido', value: 220, initials: 'TS', priority: 'Normal' },
-    { id: 'PED-009', client: 'Lucas Santos', service: 'Camisa personalizada', createdAt: '09/11/2026', deliveryDate: '25/11/2026', status: 'Pronto p/ entrega', value: 290, initials: 'LS', priority: 'Prioritário' },
-    { id: 'PED-008', client: 'Camila Oliveira', service: 'Vestido estampado', createdAt: '08/11/2026', deliveryDate: '15/11/2026', status: 'Entregue', value: 520, initials: 'CO', priority: 'Normal' },
-    { id: 'TEST-001', client: 'Beatriz Costa', service: 'Vestido estampado', createdAt: '07/11/2026', deliveryDate: '19/11/2026', status: 'Em produção', value: 450, initials: 'BC', priority: 'Prioritário' },
-    { id: 'TEST-002', client: 'Joana Ribeiro', service: 'Blusa sob medida', createdAt: '06/11/2026', deliveryDate: '20/11/2026', status: 'Pago', value: 180, initials: 'JR', priority: 'Normal' },
-    { id: 'TEST-003', client: 'Rafaela Mendes', service: 'Saia longa', createdAt: '05/11/2026', deliveryDate: '22/11/2026', status: 'Pago', value: 260, initials: 'RM', priority: 'Normal' },
-    { id: 'TEST-004', client: 'Fernanda Lima', service: 'Conjunto africano', createdAt: '04/11/2026', deliveryDate: '24/11/2026', status: 'Pronto p/ entrega', value: 520, initials: 'FL', priority: 'Prioritário' },
-    { id: 'TEST-005', client: 'Aline Carvalho', service: 'Camisa social', createdAt: '03/11/2026', deliveryDate: '25/11/2026', status: 'Em produção', value: 340, initials: 'AC', priority: 'Normal' },
-    { id: 'TEST-006', client: 'Luana Martins', service: 'Vestido de festa', createdAt: '02/11/2026', deliveryDate: '27/11/2026', status: 'Corte & tecido', value: 610, initials: 'LM', priority: 'Prioritário' },
-    { id: 'TEST-007', client: 'Isabela Rocha', service: 'Saia midi', createdAt: '01/11/2026', deliveryDate: '28/11/2026', status: '1ª prova realizada', value: 230, initials: 'IR', priority: 'Normal' },
-    { id: 'TEST-008', client: 'Sofia Alves', service: 'Macacão', createdAt: '31/10/2026', deliveryDate: '29/11/2026', status: 'Pronto p/ entrega', value: 490, initials: 'SA', priority: 'Normal' },
-    { id: 'TEST-009', client: 'Camila Nunes', service: 'Blazer feminino', createdAt: '30/10/2026', deliveryDate: '30/11/2026', status: 'Em produção', value: 580, initials: 'CN', priority: 'Prioritário' },
-    { id: 'TEST-010', client: 'Júlia Fernandes', service: 'Vestido casual', createdAt: '29/10/2026', deliveryDate: '02/12/2026', status: 'Entregue', value: 320, initials: 'JF', priority: 'Normal' }
-  ];
-  readonly deliveries: UpcomingDelivery[] = [
-    { label: 'Hoje', count: '1 pedido', tone: 'urgent' },
-    { label: 'Próximos 3 dias', count: '2 pedidos', tone: 'soon' },
-    { label: 'Próxima semana', count: '4 pedidos', tone: 'later' }
-  ];
+
+  orders: DashboardOrder[] = [];
   readonly weekdays = ['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom'];
   readonly today = new Date();
   calendarDate = new Date(this.today.getFullYear(), this.today.getMonth(), 1);
+
+  constructor(private readonly ordersStore: OrdersStoreService) {}
+
+  ngOnInit(): void {
+    this.ordersStore.getOrders().subscribe({
+      next: (dadosDaApi: any[]) => {
+        this.orders = dadosDaApi.map((pedido) => this.mapPedidoToDashboard(pedido));
+
+        const storeRecords: OrderRecord[] = dadosDaApi.map((pedido) => ({
+          id: `PED-${String(pedido.idPedido).padStart(3, '0')}`,
+          client: pedido.idClienteNavigation?.nomeCompleto || 'Cliente não informada',
+          clientId: pedido.idCliente,
+          service: pedido.tipoPeca,
+          createdAt: this.formatIsoDate(pedido.dataPedido),
+          firstFittingDate: pedido.dataSugeridaProva ? this.formatIsoDate(pedido.dataSugeridaProva) : '—',
+          fittingStatus: pedido.dataProvaRealizada ? 'Realizada' : (pedido.dataSugeridaProva ? 'Agendada' : 'Não agendada'),
+          deliveryDate: this.formatIsoDate(pedido.dataPrevistaEntrega),
+          status: this.normalizeStatus(pedido.statusAtual),
+          value: Number(pedido.valorTotal ?? 0),
+          initials: this.createInitials(pedido.idClienteNavigation?.nomeCompleto || ''),
+          priority: pedido.prioridade ? 'Prioridade' : 'Normal',
+          paymentCondition: pedido.condicaoPagamento || undefined,
+          notes: pedido.detalhesObservacoes || undefined
+        }));
+        this.ordersStore.setOrders(storeRecords);
+      },
+      error: (erro) => {
+        console.error('Erro ao carregar resumo do dashboard:', erro);
+      }
+    });
+  }
+
+  get metrics(): DashboardMetric[] {
+    return [
+      { label: 'Total de pedidos', value: this.orders.length, icon: 'orders', tone: 'rose' },
+      { label: 'Corte & tecido', value: this.countByStatus('Corte & tecido'), icon: 'scissors', tone: 'gold' },
+      { label: '1ª prova realizada', value: this.countByStatus('1ª prova realizada'), icon: 'fitting', tone: 'lilac' },
+      { label: 'Em produção', value: this.countByStatus('Em produção'), icon: 'production', tone: 'blue' },
+      { label: 'Pronto p/ entrega', value: this.countByStatus('Pronto p/ entrega'), icon: 'ready', tone: 'green' },
+      {
+        label: 'Entregues',
+        value: this.countByStatus('Entregue') + this.countByStatus('Pago'),
+        icon: 'package',
+        tone: 'peach'
+      }
+    ];
+  }
+
+  get deliveries(): UpcomingDelivery[] {
+    const startOfToday = new Date(this.today.getFullYear(), this.today.getMonth(), this.today.getDate());
+    let todayCount = 0;
+    let nextThreeDaysCount = 0;
+    let nextWeekCount = 0;
+
+    for (const order of this.orders) {
+      if (!order.deliveryIso || order.status === 'Entregue' || order.status === 'Pago') {
+        continue;
+      }
+
+      const [year, month, day] = order.deliveryIso.split('-').map(Number);
+      const deliveryDate = new Date(year, month - 1, day);
+      if (Number.isNaN(deliveryDate.getTime())) {
+        continue;
+      }
+
+      const diffDays = Math.round((deliveryDate.getTime() - startOfToday.getTime()) / 86400000);
+
+      if (diffDays === 0) {
+        todayCount += 1;
+      } else if (diffDays >= 1 && diffDays <= 3) {
+        nextThreeDaysCount += 1;
+      } else if (diffDays >= 4 && diffDays <= 7) {
+        nextWeekCount += 1;
+      }
+    }
+
+    return [
+      { label: 'Hoje', count: `${todayCount} ${todayCount === 1 ? 'pedido' : 'pedidos'}`, tone: 'urgent' },
+      { label: 'Próximos 3 dias', count: `${nextThreeDaysCount} ${nextThreeDaysCount === 1 ? 'pedido' : 'pedidos'}`, tone: 'soon' },
+      { label: 'Próxima semana', count: `${nextWeekCount} ${nextWeekCount === 1 ? 'pedido' : 'pedidos'}`, tone: 'later' }
+    ];
+  }
 
   get calendarTitle(): string {
     const title = this.calendarDate.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
@@ -160,9 +224,22 @@ export class HomePageComponent {
   }
 
   get deliveryDays(): number[] {
-    const isCurrentMonth = this.calendarDate.getFullYear() === this.today.getFullYear()
-      && this.calendarDate.getMonth() === this.today.getMonth();
-    return isCurrentMonth ? [20, 23, 26, 28] : [];
+    const targetYear = this.calendarDate.getFullYear();
+    const targetMonth = this.calendarDate.getMonth() + 1;
+    const days = new Set<number>();
+
+    for (const order of this.orders) {
+      if (!order.deliveryIso) {
+        continue;
+      }
+
+      const [year, month, day] = order.deliveryIso.split('-').map(Number);
+      if (year === targetYear && month === targetMonth && day) {
+        days.add(day);
+      }
+    }
+
+    return [...days].sort((a, b) => a - b);
   }
 
   statusClass(status: OrderStatus): string {
@@ -184,5 +261,49 @@ export class HomePageComponent {
 
   changeMonth(offset: number): void {
     this.calendarDate = new Date(this.calendarDate.getFullYear(), this.calendarDate.getMonth() + offset, 1);
+  }
+
+  private countByStatus(status: OrderStatus): number {
+    return this.orders.filter((order) => order.status === status).length;
+  }
+
+  private mapPedidoToDashboard(pedido: any): DashboardOrder {
+    const clientName = pedido.idClienteNavigation?.nomeCompleto || 'Cliente não informada';
+    const rawCreatedAt = pedido.dataPedido ? String(pedido.dataPedido).split('T')[0] : '';
+    const rawDeliveryDate = pedido.dataPrevistaEntrega ? String(pedido.dataPrevistaEntrega).split('T')[0] : '';
+
+    return {
+      id: `PED-${String(pedido.idPedido).padStart(3, '0')}`,
+      client: clientName,
+      clientId: pedido.idCliente,
+      service: pedido.tipoPeca,
+      createdAt: this.formatIsoDate(rawCreatedAt),
+      deliveryDate: this.formatIsoDate(rawDeliveryDate),
+      deliveryIso: rawDeliveryDate || undefined,
+      status: this.normalizeStatus(pedido.statusAtual),
+      value: Number(pedido.valorTotal ?? 0),
+      initials: this.createInitials(clientName),
+      priority: pedido.prioridade ? 'Prioritário' : 'Normal'
+    };
+  }
+
+  private normalizeStatus(rawStatus?: string): OrderStatus {
+    return this.validStatuses.includes(rawStatus as OrderStatus)
+      ? (rawStatus as OrderStatus)
+      : 'Corte & tecido';
+  }
+
+  private formatIsoDate(rawDate?: string): string {
+    if (!rawDate) {
+      return '—';
+    }
+
+    const clean = String(rawDate).split('T')[0];
+    const [year, month, day] = clean.split('-');
+    return year && month && day ? `${day}/${month}/${year}` : clean;
+  }
+
+  private createInitials(name: string): string {
+    return name.trim().split(/\s+/).slice(0, 2).map((part) => part[0]).join('').toLocaleUpperCase('pt-BR');
   }
 }

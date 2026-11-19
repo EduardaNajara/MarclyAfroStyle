@@ -1,5 +1,6 @@
-import { Component, inject } from '@angular/core';
+import { Component, computed, inject } from '@angular/core';
 import { Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
+import { AuthService } from '../services/auth.service';
 import { IconComponent } from '../shared/icon/icon.component';
 import { IconName } from '../shared/icon/icon-name';
 
@@ -23,10 +24,17 @@ import { IconName } from '../shared/icon/icon-name';
           }
         </nav>
         <div class="sidebar-account">
-          <span class="sidebar-profile-avatar" role="img" aria-label="Perfil de Marcly Silva, Administradora" title="Marcly Silva — Administradora">MS</span>
+          <span
+            class="sidebar-profile-avatar"
+            role="img"
+            [attr.aria-label]="'Perfil de ' + currentUser().nomeCompleto + ', ' + currentUser().perfilAcesso"
+            [title]="currentUser().nomeCompleto + ' — ' + currentUser().perfilAcesso"
+          >
+            {{ currentUser().initials }}
+          </span>
           <div class="sidebar-profile-info">
-            <strong>Marcly Silva</strong>
-            <span>Administradora</span>
+            <strong>{{ currentUser().nomeCompleto }}</strong>
+            <span>{{ currentUser().perfilAcesso }}</span>
           </div>
           <button class="sidebar-logout" type="button" aria-label="Sair da conta" title="Sair" (click)="logout()">
             <app-icon name="logout" />
@@ -42,8 +50,19 @@ import { IconName } from '../shared/icon/icon-name';
 })
 export class DashboardLayoutComponent {
   private readonly router = inject(Router);
+  private readonly authService = inject(AuthService);
 
   readonly currentYear = new Date().getFullYear();
+
+  readonly currentUser = computed(() => {
+    return this.authService.userSignal() ?? {
+      idUsuario: 0,
+      nomeCompleto: 'Usuário',
+      email: '',
+      perfilAcesso: 'Perfil comum',
+      initials: 'US'
+    };
+  });
 
   readonly navItems = [
     { label: 'Início', path: '/inicio', icon: 'home' },
@@ -58,6 +77,7 @@ export class DashboardLayoutComponent {
   }
 
   logout(): void {
+    this.authService.logout();
     void this.router.navigateByUrl('/login');
   }
 }

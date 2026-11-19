@@ -1,10 +1,11 @@
-import { Component, HostListener } from '@angular/core';
+import { Component, HostListener, OnInit } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { Client } from '../../models/pages/client.model';
-import { OrderComment, OrderPriority, OrderRecord, OrderStatus } from '../../models/pages/order.model';
+import { OrderComment, OrderFittingStatus, OrderPriority, OrderRecord, OrderStatus } from '../../models/pages/order.model';
 import { IconComponent } from '../../shared/icon/icon.component';
 import { ClientStoreService } from '../../services/client-store.service';
 import { OrdersStoreService } from '../../services/orders-store.service';
+
 type OrderStatusFilter = 'Todos' | 'Em andamento' | OrderStatus;
 
 interface NewOrderDraft {
@@ -74,7 +75,7 @@ interface OrderDetailDraft {
                     <span class="visually-hidden">Selecionar cliente</span>
                     <select name="newOrderClient" [(ngModel)]="newOrder.client" required>
                       <option value="" disabled>Selecione uma cliente</option>
-                      @for (client of clientOptions; track client.name) {
+                      @for (client of clientOptions; track client.id) {
                         <option [value]="client.name">{{ client.initials }} · {{ client.name }} · {{ client.orders }} {{ client.orders === 1 ? 'pedido anterior' : 'pedidos anteriores' }}</option>
                       }
                     </select>
@@ -161,8 +162,10 @@ interface OrderDetailDraft {
                 }
               </div>
               <footer class="orders-modal-actions">
-                <button type="button" class="secondary-button" (click)="closeNewOrderModal()">Cancelar</button>
-                <button type="submit" class="primary-button">Cadastrar</button>
+                <button type="button" class="secondary-button" [disabled]="isSaving" (click)="closeNewOrderModal()">Cancelar</button>
+                <button type="submit" class="primary-button" [disabled]="isSaving">
+                  {{ isSaving ? 'Cadastrando...' : 'Cadastrar' }}
+                </button>
               </footer>
             </form>
           </section>
@@ -233,7 +236,7 @@ interface OrderDetailDraft {
                     <section class="orders-detail-card orders-detail-client">
                       <div class="orders-detail-section-heading">
                         <h3>Dados da cliente</h3>
-                        <span class="orders-client-count">{{ getOrderClient(selectedOrder)?.orders ?? getClientOrderCount(selectedOrder.client) }} pedidos no sistema</span>
+                        <span class="orders-client-count">{{ getClientOrderCount(selectedOrder.client) }} pedidos no sistema</span>
                       </div>
                       <div class="orders-client-summary">
                         <span class="orders-client-avatar">{{ getOrderClient(selectedOrder)?.initials ?? selectedOrder.initials }}</span>
@@ -307,8 +310,8 @@ interface OrderDetailDraft {
                         @if (commentError) {
                           <p class="orders-comment-error" role="alert">{{ commentError }}</p>
                         }
-                        <button type="button" class="orders-add-comment" (click)="addAtelierComment()">
-                          <app-icon name="plus" /> Adicionar nota
+                        <button type="button" class="orders-add-comment" [disabled]="isAddingComment" (click)="addAtelierComment()">
+                          <app-icon name="plus" /> {{ isAddingComment ? 'Salvando nota...' : 'Adicionar nota' }}
                         </button>
                       </section>
                     </section>
@@ -354,24 +357,28 @@ interface OrderDetailDraft {
                   <div class="orders-delete-confirm" role="alertdialog" aria-labelledby="delete-order-title">
                     <div>
                       <strong id="delete-order-title">Excluir este pedido?</strong>
-                      <p>Essa ação removerá o pedido da lista desta sessão.</p>
+                      <p>Essa ação removerá permanentemente o pedido do banco de dados.</p>
                     </div>
                     <div>
-                      <button type="button" class="secondary-button" (click)="isDeleteConfirmationOpen = false">Manter pedido</button>
-                      <button type="button" class="orders-delete-confirm-button" (click)="deleteSelectedOrder()">Excluir</button>
+                      <button type="button" class="secondary-button" [disabled]="isSaving" (click)="isDeleteConfirmationOpen = false">Manter pedido</button>
+                      <button type="button" class="orders-delete-confirm-button" [disabled]="isSaving" (click)="deleteSelectedOrder()">
+                        {{ isSaving ? 'Excluindo...' : 'Excluir' }}
+                      </button>
                     </div>
                   </div>
                 }
 
                 <footer class="orders-details-footer">
-                  <button type="button" class="orders-delete-button" (click)="isDeleteConfirmationOpen = true">
+                  <button type="button" class="orders-delete-button" [disabled]="isSaving" (click)="isDeleteConfirmationOpen = true">
                     <app-icon name="delete" /> Excluir
                   </button>
-                  <button type="button" class="orders-duplicate-button" (click)="duplicateSelectedOrder()">
+                  <button type="button" class="orders-duplicate-button" [disabled]="isSaving" (click)="duplicateSelectedOrder()">
                     <app-icon name="copy" /> Duplicar Modelo
                   </button>
-                  <button type="button" class="secondary-button orders-back-button" (click)="closeOrderDetails()">Voltar à Listagem</button>
-                  <button type="submit" class="primary-button">Salvar Alterações do Pedido</button>
+                  <button type="button" class="secondary-button orders-back-button" [disabled]="isSaving" (click)="closeOrderDetails()">Voltar à Listagem</button>
+                  <button type="submit" class="primary-button" [disabled]="isSaving">
+                    {{ isSaving ? 'Salvando...' : 'Salvar Alterações do Pedido' }}
+                  </button>
                 </footer>
               </form>
             </div>
@@ -471,7 +478,7 @@ interface OrderDetailDraft {
                       <button type="button" [attr.aria-label]="'Visualizar pedido ' + order.id" title="Visualizar pedido" (click)="showOrderDetails(order)">
                         <app-icon name="view" />
                       </button>
-                      <button type="button" [attr.aria-label]="'Excluir pedido ' + order.id" title="Excluir pedido" (click)="showDeleteNotice(order)">
+                      <button type="button" [attr.aria-label]="'Excluir pedido ' + order.id" title="Excluir pedido" (click)="promptDeleteOrder(order)">
                         <app-icon name="delete" />
                       </button>
                     </div>
@@ -504,7 +511,7 @@ interface OrderDetailDraft {
     </section>
   `
 })
-export class OrdersPageComponent {
+export class OrdersPageComponent implements OnInit {
   readonly pageSize = 6;
   readonly orderStatuses: OrderStatus[] = [
     'Corte & tecido',
@@ -531,6 +538,8 @@ export class OrdersPageComponent {
   currentPage = 1;
   actionNotice = '';
   isNewOrderModalOpen = false;
+  isSaving = false;
+  isAddingComment = false;
   newOrderError = '';
   newOrder: NewOrderDraft = this.createEmptyOrderDraft();
   selectedOrder: OrderRecord | null = null;
@@ -543,6 +552,47 @@ export class OrdersPageComponent {
     private readonly clientStore: ClientStoreService,
     private readonly ordersStore: OrdersStoreService
   ) {}
+
+  ngOnInit(): void {
+    this.ordersStore.getOrders().subscribe({
+      next: (dadosDaApi: any[]) => {
+        this.orders = dadosDaApi.map((pedido) => this.mapPedidoFromApi(pedido));
+      },
+      error: (erro: any) => {
+        console.error('Erro ao carregar pedidos do C#:', erro);
+      }
+    });
+
+    if (this.clientStore.clients.length === 0) {
+      this.clientStore.getClients().subscribe({
+        next: (clientesApi: any[]) => {
+          const mapeadas: Client[] = clientesApi.map((c) => {
+            const bust = Number(c.medidaBusto ?? 0);
+            const waist = Number(c.medidaCintura ?? 0);
+            const hip = Number(c.medidaQuadril ?? 0);
+            const length = Number(c.medidaComprimento ?? 0);
+            return {
+              id: c.idCliente,
+              name: c.nomeCompleto,
+              email: c.email || 'Não informado',
+              phone: c.telefone || '',
+              location: c.localizacao || 'Não informada',
+              orders: c.pedidos?.length ?? 0,
+              initials: this.createInitials(c.nomeCompleto || ''),
+              lastOrder: '—',
+              measurementStatus: bust > 0 && waist > 0 && hip > 0 && length > 0 ? 'Atualizadas' : 'Pendente Medição',
+              newThisMonth: false,
+              measurements: { bust, waist, hip, length }
+            };
+          });
+          this.clientStore.setClients(mapeadas);
+        },
+        error: (erro: any) => {
+          console.error('Erro ao carregar clientes para o seletor de pedidos:', erro);
+        }
+      });
+    }
+  }
 
   get orders(): OrderRecord[] {
     return this.ordersStore.orders;
@@ -675,9 +725,9 @@ export class OrdersPageComponent {
 
   @HostListener('document:keydown.escape')
   closeNewOrderModalOnEscape(): void {
-    if (this.isNewOrderModalOpen) {
+    if (this.isNewOrderModalOpen && !this.isSaving) {
       this.closeNewOrderModal();
-    } else if (this.selectedOrder) {
+    } else if (this.selectedOrder && !this.isSaving) {
       this.closeOrderDetails();
     }
   }
@@ -693,32 +743,41 @@ export class OrdersPageComponent {
       return;
     }
 
-    const nextId = Math.max(0, ...this.orders.map((order) => Number(order.id.replace(/\D/g, '')) || 0)) + 1;
-    const fittingDate = this.newOrder.firstFittingDate;
-    this.orders = [{
-      id: `PED-${String(nextId).padStart(3, '0')}`,
-      client: selectedClient.name,
-      clientId: selectedClient.id,
-      service,
-      createdAt: this.formatOrderDate(this.newOrder.createdAt),
-      firstFittingDate: fittingDate ? this.formatOrderDate(fittingDate) : '—',
-      fittingStatus: fittingDate ? 'Agendada' : 'Não agendada',
-      deliveryDate: this.formatOrderDate(this.newOrder.deliveryDate),
-      status: this.newOrder.status,
-      value,
-      initials: selectedClient.initials,
-      priority: this.newOrder.priority,
-      paymentCondition: this.newOrder.paymentCondition,
-      notes: this.newOrder.notes.trim() || undefined
-    }, ...this.orders];
+    const payload = {
+      idCliente: selectedClient.id,
+      tipoPeca: service,
+      valorTotal: value,
+      condicaoPagamento: this.newOrder.paymentCondition,
+      dataPedido: this.newOrder.createdAt,
+      dataSugeridaProva: this.newOrder.firstFittingDate || null,
+      dataPrevistaEntrega: this.newOrder.deliveryDate,
+      prioridade: this.newOrder.priority === 'Prioridade',
+      statusAtual: this.newOrder.status,
+      detalhesObservacoes: this.newOrder.notes.trim() || null
+    };
 
-    this.selectedStatus = 'Todos';
-    this.selectedDeliveryMonth = '';
-    this.selectedPriority = 'Todas';
-    this.searchTerm = '';
-    this.currentPage = 1;
-    this.actionNotice = `Pedido PED-${String(nextId).padStart(3, '0')} cadastrado com sucesso.`;
-    this.closeNewOrderModal();
+    this.isSaving = true;
+    this.newOrderError = '';
+
+    this.ordersStore.createOrder(payload).subscribe({
+      next: (pedidoCriado) => {
+        const mapeado = this.mapPedidoFromApi(pedidoCriado);
+        this.orders = [mapeado, ...this.orders];
+        this.selectedStatus = 'Todos';
+        this.selectedDeliveryMonth = '';
+        this.selectedPriority = 'Todas';
+        this.searchTerm = '';
+        this.currentPage = 1;
+        this.actionNotice = `Pedido ${mapeado.id} cadastrado com sucesso.`;
+        this.isSaving = false;
+        this.closeNewOrderModal();
+      },
+      error: (erro) => {
+        console.error('Erro ao cadastrar pedido:', erro);
+        this.newOrderError = 'Não foi possível cadastrar o pedido no servidor.';
+        this.isSaving = false;
+      }
+    });
   }
 
   showOrderDetails(order: OrderRecord): void {
@@ -763,22 +822,40 @@ export class OrdersPageComponent {
     }
 
     const orderId = this.selectedOrder.id;
+    const numericId = this.extractNumericId(orderId);
     const draft = this.orderDetailDraft;
-    this.orders = this.orders.map((order) => order.id === orderId
-      ? {
-          ...order,
-          status: draft.status,
-          deliveryDate: this.formatOrderDate(draft.deliveryDate),
-          firstFittingDate: draft.firstFittingDate ? this.formatOrderDate(draft.firstFittingDate) : '—',
-          fittingStatus: draft.firstFittingDate ? draft.fittingStatus : 'Não agendada',
-          priority: draft.priority,
-          paymentCondition: draft.paymentCondition || undefined,
-          notes: draft.notes.trim() || undefined
-        }
-      : order);
+    const existingComments = this.selectedOrder.comments ?? [];
 
-    this.actionNotice = `Alterações do pedido ${orderId} salvas.`;
-    this.closeOrderDetails();
+    const payload = {
+      idCliente: this.selectedOrder.clientId ?? 0,
+      tipoPeca: this.selectedOrder.service,
+      valorTotal: this.selectedOrder.value,
+      condicaoPagamento: draft.paymentCondition || 'A combinar',
+      dataSugeridaProva: draft.firstFittingDate || null,
+      dataPrevistaEntrega: draft.deliveryDate,
+      prioridade: draft.priority === 'Prioridade',
+      statusAtual: draft.status,
+      detalhesObservacoes: draft.notes.trim() || null
+    };
+
+    this.isSaving = true;
+
+    this.ordersStore.updateOrder(numericId, payload).subscribe({
+      next: (pedidoAtualizado) => {
+        const mapeado = this.mapPedidoFromApi(pedidoAtualizado);
+        this.orders = this.orders.map((order) =>
+          order.id === orderId ? { ...mapeado, comments: existingComments } : order
+        );
+        this.actionNotice = `Alterações do pedido ${orderId} salvas.`;
+        this.isSaving = false;
+        this.closeOrderDetails();
+      },
+      error: (erro) => {
+        console.error('Erro ao atualizar pedido:', erro);
+        this.actionNotice = `Não foi possível salvar as alterações do pedido ${orderId}.`;
+        this.isSaving = false;
+      }
+    });
   }
 
   duplicateSelectedOrder(): void {
@@ -804,16 +881,34 @@ export class OrdersPageComponent {
     this.isNewOrderModalOpen = true;
   }
 
+  promptDeleteOrder(order: OrderRecord): void {
+    this.showOrderDetails(order);
+    this.isDeleteConfirmationOpen = true;
+  }
+
   deleteSelectedOrder(): void {
     if (!this.selectedOrder) {
       return;
     }
 
     const orderId = this.selectedOrder.id;
-    this.orders = this.orders.filter((order) => order.id !== orderId);
-    this.currentPage = Math.min(this.currentPage, this.pageCount);
-    this.closeOrderDetails();
-    this.actionNotice = `Pedido ${orderId} excluído desta sessão.`;
+    const numericId = this.extractNumericId(orderId);
+    this.isSaving = true;
+
+    this.ordersStore.deleteOrder(numericId).subscribe({
+      next: () => {
+        this.orders = this.orders.filter((order) => order.id !== orderId);
+        this.currentPage = Math.min(this.currentPage, this.pageCount);
+        this.isSaving = false;
+        this.closeOrderDetails();
+        this.actionNotice = `Pedido ${orderId} excluído com sucesso.`;
+      },
+      error: (erro) => {
+        console.error('Erro ao excluir pedido:', erro);
+        this.isSaving = false;
+        this.actionNotice = `Não foi possível excluir o pedido ${orderId}.`;
+      }
+    });
   }
 
   getClientOrderCount(clientName: string): number {
@@ -856,29 +951,98 @@ export class OrdersPageComponent {
       return;
     }
 
-    const newComment: OrderComment = {
-      id: `${Date.now()}`,
-      author: 'Ateliê Marcly',
-      message,
-      createdAt: new Date().toISOString()
-    };
     const orderId = this.selectedOrder.id;
-    const updatedOrder = {
-      ...this.selectedOrder,
-      comments: [newComment, ...(this.selectedOrder.comments ?? [])]
-    };
-    this.orders = this.orders.map((order) => order.id === orderId ? updatedOrder : order);
-    this.selectedOrder = updatedOrder;
-    this.newAtelierComment = '';
+    const numericId = this.extractNumericId(orderId);
+    this.isAddingComment = true;
     this.commentError = '';
+
+    this.ordersStore.addOrderNote(numericId, {
+      tipoTag: 'Observação',
+      textoComentario: message
+    }).subscribe({
+      next: (anotacaoCriada) => {
+        if (!this.selectedOrder) {
+          this.isAddingComment = false;
+          return;
+        }
+        const newComment: OrderComment = {
+          id: String(anotacaoCriada.idAnotacao ?? Date.now()),
+          author: anotacaoCriada.idUsuarioNavigation?.nomeCompleto || 'Ateliê Marcly',
+          message: anotacaoCriada.textoComentario,
+          createdAt: anotacaoCriada.dataRegisto || new Date().toISOString()
+        };
+        const updatedOrder = {
+          ...this.selectedOrder,
+          comments: [newComment, ...(this.selectedOrder.comments ?? [])]
+        };
+        this.orders = this.orders.map((order) => order.id === orderId ? updatedOrder : order);
+        this.selectedOrder = updatedOrder;
+        this.newAtelierComment = '';
+        this.isAddingComment = false;
+      },
+      error: (erro) => {
+        console.error('Erro ao salvar anotação do pedido:', erro);
+        this.commentError = 'Não foi possível salvar a nota no servidor.';
+        this.isAddingComment = false;
+      }
+    });
   }
 
   formatCurrency(value: number): string {
     return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
   }
 
-  showDeleteNotice(order: OrderRecord): void {
-    this.actionNotice = `A exclusão do pedido ${order.id} ainda não está conectada.`;
+  private mapPedidoFromApi(pedido: any): OrderRecord {
+    const clientName = pedido.idClienteNavigation?.nomeCompleto || 'Cliente não informada';
+    const rawCreatedAt = pedido.dataPedido ? String(pedido.dataPedido).split('T')[0] : '';
+    const rawFittingDate = pedido.dataSugeridaProva ? String(pedido.dataSugeridaProva).split('T')[0] : '';
+    const rawDeliveryDate = pedido.dataPrevistaEntrega ? String(pedido.dataPrevistaEntrega).split('T')[0] : '';
+
+    const normalizedStatus: OrderStatus = this.orderStatuses.includes(pedido.statusAtual)
+      ? pedido.statusAtual
+      : 'Corte & tecido';
+
+    let fittingStatus: OrderFittingStatus = 'Não agendada';
+    if (pedido.dataProvaRealizada || ['1ª prova realizada', 'Em produção', 'Pronto p/ entrega', 'Entregue', 'Pago'].includes(normalizedStatus)) {
+      fittingStatus = rawFittingDate || pedido.dataProvaRealizada ? 'Realizada' : 'Não agendada';
+    } else if (rawFittingDate) {
+      fittingStatus = 'Agendada';
+    }
+
+    const comments: OrderComment[] = Array.isArray(pedido.pedidoAnotacos)
+      ? pedido.pedidoAnotacos.map((a: any) => ({
+          id: String(a.idAnotacao),
+          author: a.idUsuarioNavigation?.nomeCompleto || 'Ateliê Marcly',
+          message: a.textoComentario,
+          createdAt: a.dataRegisto
+        }))
+      : [];
+
+    return {
+      id: `PED-${String(pedido.idPedido).padStart(3, '0')}`,
+      client: clientName,
+      clientId: pedido.idCliente,
+      service: pedido.tipoPeca,
+      createdAt: rawCreatedAt ? this.formatOrderDate(rawCreatedAt) : '—',
+      firstFittingDate: rawFittingDate ? this.formatOrderDate(rawFittingDate) : '—',
+      fittingStatus,
+      deliveryDate: rawDeliveryDate ? this.formatOrderDate(rawDeliveryDate) : '—',
+      status: normalizedStatus,
+      value: Number(pedido.valorTotal ?? 0),
+      initials: this.createInitials(clientName),
+      priority: pedido.prioridade ? 'Prioridade' : 'Normal',
+      paymentCondition: pedido.condicaoPagamento || undefined,
+      notes: pedido.detalhesObservacoes || undefined,
+      comments
+    };
+  }
+
+  private extractNumericId(formattedId: string): number {
+    return Number(formattedId.replace(/\D/g, '')) || 0;
+  }
+
+  private createInitials(name: string): string {
+    return name.trim().split(/\s+/).slice(0, 2).map((part) => part[0]).join('').toLocaleUpperCase('pt-BR');
   }
 
   private deliveryMonth(date: string): string {

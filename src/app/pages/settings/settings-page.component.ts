@@ -1,4 +1,5 @@
-import { Component, HostListener } from '@angular/core';
+import { Component, HostListener, OnInit } from '@angular/core';
+import { HttpClient } from '@angular/common/http';
 import { FormsModule } from '@angular/forms';
 import { IconComponent } from '../../shared/icon/icon.component';
 
@@ -74,7 +75,7 @@ interface NewUserDraft {
               </div>
               <div>
                 <dt>Slogan / Assinatura</dt>
-                <dd>{{ settings.slogan }}</dd>
+                <dd>{{ settings.slogan || '—' }}</dd>
               </div>
               <div>
                 <dt>WhatsApp comercial</dt>
@@ -86,11 +87,11 @@ interface NewUserDraft {
               </div>
               <div class="settings-details-wide">
                 <dt>Endereço do ateliê</dt>
-                <dd>{{ settings.address }}</dd>
+                <dd>{{ settings.address || '—' }}</dd>
               </div>
               <div class="settings-details-wide">
                 <dt>Chave Pix para recebimento de sinais</dt>
-                <dd>{{ settings.pixKey }} <span class="settings-pix-badge">Pix ativo</span></dd>
+                <dd>{{ settings.pixKey || '—' }} @if (settings.pixKey) { <span class="settings-pix-badge">Pix ativo</span> }</dd>
               </div>
             </dl>
           </section>
@@ -107,14 +108,18 @@ interface NewUserDraft {
                 </div>
               </div>
               <label class="settings-toggle" aria-label="Ativar mensagem automática">
-                <input type="checkbox" name="messageEnabled" [(ngModel)]="messageEnabled">
+                <input
+                  type="checkbox"
+                  name="messageEnabled"
+                  [(ngModel)]="messageEnabled"
+                  (ngModelChange)="onToggleAutoMessage($event)">
                 <span></span>
               </label>
             </header>
 
             <div class="settings-message-preview">
               <span class="settings-field-label">Modelo do texto personalizado</span>
-              <p>{{ settings.messageTemplate }}</p>
+              <p>{{ settings.messageTemplate || 'Nenhum modelo configurado.' }}</p>
               <small>Variáveis disponíveis: [Nome da Cliente], [Nome da Peça], [Data da Prova]</small>
             </div>
             <footer class="settings-card-footer">
@@ -239,10 +244,10 @@ interface NewUserDraft {
             </section>
 
             <footer class="settings-modal-actions">
-              <button class="secondary-button" type="button" (click)="closeModals()">Cancelar</button>
-              <button class="primary-button" type="submit">
+              <button class="secondary-button" type="button" [disabled]="isSaving" (click)="closeModals()">Cancelar</button>
+              <button class="primary-button" type="submit" [disabled]="isSaving">
                 <app-icon name="save" />
-                Salvar alterações
+                {{ isSaving ? 'Salvando...' : 'Salvar alterações' }}
               </button>
             </footer>
           </form>
@@ -276,7 +281,7 @@ interface NewUserDraft {
             <label>
               Senha de acesso *
               <input name="newUserPassword" [(ngModel)]="newUser.password" autocomplete="new-password" type="password" minlength="8" required>
-              <small>Senha provisória para o primeiro acesso.</small>
+              <small>Senha provisória para o primeiro acesso (mínimo 8 caracteres).</small>
             </label>
             <label>
               Perfil de acesso
@@ -289,10 +294,10 @@ interface NewUserDraft {
               <p class="settings-notice settings-notice-error" role="alert">{{ userFormError }}</p>
             }
             <footer class="settings-modal-actions">
-              <button class="secondary-button" type="button" (click)="closeModals()">Cancelar</button>
-              <button class="primary-button" type="submit">
+              <button class="secondary-button" type="button" [disabled]="isSaving" (click)="closeModals()">Cancelar</button>
+              <button class="primary-button" type="submit" [disabled]="isSaving">
                 <app-icon name="user-plus" />
-                Salvar usuário
+                {{ isSaving ? 'Salvando...' : 'Salvar usuário' }}
               </button>
             </footer>
           </form>
@@ -301,7 +306,10 @@ interface NewUserDraft {
     }
   `
 })
-export class SettingsPageComponent {
+export class SettingsPageComponent implements OnInit {
+  private readonly configApiUrl = 'http://localhost:5185/api/configuracoes';
+  private readonly usersApiUrl = 'http://localhost:5185/api/usuarios';
+
   readonly currentDateLabel = new Intl.DateTimeFormat('pt-BR', {
     day: 'numeric',
     month: 'long',
@@ -310,28 +318,63 @@ export class SettingsPageComponent {
 
   settings: AtelierSettings = {
     name: 'Marcly Afro Style',
-    slogan: 'Moda Afro sob medida e elegância',
-    phone: '(11) 98452-1102',
-    email: 'contato@marclyafrostyle.com.br',
-    address: 'Rua das Rendeiras, 240 – Bela Vista, São Paulo – SP',
-    pixKey: 'pix@marclyafrostyle.com.br (E-mail)',
-    messageTemplate: 'Olá, [Nome da Cliente]! Aqui é a Marcly do Ateliê Marcly Afro Style. Seu pedido do [Nome da Peça] foi confirmado com muito carinho! Sua 1ª prova presencial está pré-agendada para [Data da Prova]. Qualquer dúvida, estou à disposição por aqui.'
+    slogan: '',
+    phone: '',
+    email: '',
+    address: '',
+    pixKey: '',
+    messageTemplate: ''
   };
   settingsDraft: AtelierSettings = { ...this.settings };
   messageEnabled = true;
   settingsModalOpen = false;
   userModalOpen = false;
+  isSaving = false;
   notice = '';
   noticeIsError = false;
   userFormError = '';
   newUser: NewUserDraft = this.createUserDraft();
-  users: AtelierUser[] = [
-    { id: 1, name: 'Marcly Silva', email: 'marcly@marclyafrostyle.com', initials: 'MS', role: 'admin' },
-    { id: 2, name: 'Ana Beatriz', email: 'ana.assistente@marclyafrostyle.com', initials: 'AB', role: 'common' },
-    { id: 3, name: 'Lucas Santos', email: 'lucas.costura@marclyafrostyle.com', initials: 'LS', role: 'common' },
-    { id: 4, name: 'Daiane Ferreira', email: 'daiane@marclyafrostyle.com.br', initials: 'DF', role: 'common' },
-    { id: 5, name: 'Tatiana Souza', email: 'tatiana.vendas@marclyafrostyle.com', initials: 'TS', role: 'common' }
-  ];
+  users: AtelierUser[] = [];
+
+  constructor(private readonly http: HttpClient) {}
+
+  ngOnInit(): void {
+    this.loadSettings();
+    this.loadUsers();
+  }
+
+  private loadSettings(): void {
+    this.http.get<any>(this.configApiUrl).subscribe({
+      next: (data) => {
+        this.settings = {
+          name: data.nomeAtelie || 'Marcly Afro Style',
+          slogan: data.slogan || '',
+          phone: data.whatsappComercial || '',
+          email: data.emailContato || '',
+          address: data.enderecoAtelie || '',
+          pixKey: data.chavePix || '',
+          messageTemplate: data.msgWhatsappTemplate || ''
+        };
+        this.messageEnabled = Boolean(data.msgWhatsappAtiva);
+      },
+      error: (err) => {
+        console.error('Erro ao carregar configurações:', err);
+        this.setNotice('Não foi possível carregar as configurações do servidor.', true);
+      }
+    });
+  }
+
+  private loadUsers(): void {
+    this.http.get<any[]>(this.usersApiUrl).subscribe({
+      next: (data) => {
+        this.users = data.map((u) => this.mapUsuarioFromApi(u));
+      },
+      error: (err) => {
+        console.error('Erro ao carregar usuários:', err);
+        this.setNotice('Não foi possível carregar a lista de usuários.', true);
+      }
+    });
+  }
 
   openSettingsModal(): void {
     this.settingsDraft = { ...this.settings };
@@ -341,9 +384,54 @@ export class SettingsPageComponent {
   }
 
   saveSettings(): void {
-    this.settings = { ...this.settingsDraft };
-    this.settingsModalOpen = false;
-    this.setNotice('Configurações salvas com sucesso.');
+    const payload = {
+      nomeAtelie: this.settingsDraft.name.trim(),
+      slogan: this.settingsDraft.slogan.trim(),
+      whatsappComercial: this.settingsDraft.phone.trim(),
+      emailContato: this.settingsDraft.email.trim(),
+      enderecoAtelie: this.settingsDraft.address.trim(),
+      chavePix: this.settingsDraft.pixKey.trim(),
+      msgWhatsappAtiva: this.messageEnabled,
+      msgWhatsappTemplate: this.settingsDraft.messageTemplate.trim()
+    };
+
+    this.isSaving = true;
+
+    this.http.put<any>(this.configApiUrl, payload).subscribe({
+      next: (updated) => {
+        this.settings = {
+          name: updated.nomeAtelie,
+          slogan: updated.slogan || '',
+          phone: updated.whatsappComercial,
+          email: updated.emailContato,
+          address: updated.enderecoAtelie || '',
+          pixKey: updated.chavePix || '',
+          messageTemplate: updated.msgWhatsappTemplate || ''
+        };
+        this.messageEnabled = Boolean(updated.msgWhatsappAtiva);
+        this.isSaving = false;
+        this.settingsModalOpen = false;
+        this.setNotice('Configurações salvas com sucesso.');
+      },
+      error: (err) => {
+        console.error('Erro ao salvar configurações:', err);
+        this.isSaving = false;
+        this.setNotice(err.error?.message || 'Não foi possível salvar as configurações.', true);
+      }
+    });
+  }
+
+  onToggleAutoMessage(enabled: boolean): void {
+    this.http.patch<any>(`${this.configApiUrl}/whatsapp`, { msgWhatsappAtiva: enabled }).subscribe({
+      next: () => {
+        this.setNotice(enabled ? 'Mensagem automática ativada.' : 'Mensagem automática desativada.');
+      },
+      error: (err) => {
+        console.error('Erro ao atualizar status da mensagem automática:', err);
+        this.messageEnabled = !enabled;
+        this.setNotice('Não foi possível atualizar o status da mensagem.', true);
+      }
+    });
   }
 
   openUserModal(): void {
@@ -356,26 +444,53 @@ export class SettingsPageComponent {
   addUser(): void {
     const name = this.newUser.name.trim();
     const email = this.newUser.email.trim();
-    const duplicateEmail = this.users.some((user) => user.email.toLocaleLowerCase('pt-BR') === email.toLocaleLowerCase('pt-BR'));
+    const password = this.newUser.password.trim();
 
-    if (duplicateEmail) {
-      this.userFormError = 'Já existe um usuário cadastrado com este e-mail.';
+    if (!name || !email || password.length < 8) {
+      this.userFormError = 'Preencha nome, e-mail e uma senha com pelo menos 8 caracteres.';
       return;
     }
 
-    const initials = name.split(/\s+/).slice(0, 2).map((part) => part[0].toLocaleUpperCase('pt-BR')).join('');
-    const nextId = Math.max(0, ...this.users.map((user) => user.id)) + 1;
-    this.users = [...this.users, { id: nextId, name, email, initials, role: this.newUser.role }];
-    this.userModalOpen = false;
-    this.newUser = this.createUserDraft();
-    this.setNotice('Usuário cadastrado com sucesso.');
+    const payload = {
+      nomeCompleto: name,
+      email,
+      senha: password,
+      perfilAcesso: this.newUser.role === 'admin' ? 'Administrador' : 'Perfil comum'
+    };
+
+    this.isSaving = true;
+    this.userFormError = '';
+
+    this.http.post<any>(this.usersApiUrl, payload).subscribe({
+      next: (created) => {
+        const mapped = this.mapUsuarioFromApi(created);
+        this.users = [...this.users, mapped];
+        this.isSaving = false;
+        this.userModalOpen = false;
+        this.newUser = this.createUserDraft();
+        this.setNotice('Usuário cadastrado com sucesso.');
+      },
+      error: (err) => {
+        console.error('Erro ao cadastrar usuário:', err);
+        this.isSaving = false;
+        this.userFormError = err.error?.message || 'Não foi possível cadastrar o usuário.';
+      }
+    });
   }
 
   removeUser(user: AtelierUser): void {
     if (user.role === 'admin') return;
 
-    this.users = this.users.filter((item) => item.id !== user.id);
-    this.setNotice(`Usuário ${user.name} removido.`);
+    this.http.delete<void>(`${this.usersApiUrl}/${user.id}`).subscribe({
+      next: () => {
+        this.users = this.users.filter((item) => item.id !== user.id);
+        this.setNotice(`Usuário ${user.name} removido.`);
+      },
+      error: (err) => {
+        console.error('Erro ao remover usuário:', err);
+        this.setNotice(err.error?.message || 'Não foi possível remover o usuário.', true);
+      }
+    });
   }
 
   testWhatsApp(): void {
@@ -383,13 +498,14 @@ export class SettingsPageComponent {
   }
 
   closeModals(): void {
+    if (this.isSaving) return;
     this.settingsModalOpen = false;
     this.userModalOpen = false;
     this.userFormError = '';
   }
 
   closeOnBackdrop(event: MouseEvent, modal: 'settings' | 'user'): void {
-    if (event.target !== event.currentTarget) return;
+    if (event.target !== event.currentTarget || this.isSaving) return;
 
     if (modal === 'settings') {
       this.settingsModalOpen = false;
@@ -404,12 +520,28 @@ export class SettingsPageComponent {
     this.closeModals();
   }
 
+  private mapUsuarioFromApi(u: any): AtelierUser {
+    const name = u.nomeCompleto || '';
+    const isAdmin = String(u.perfilAcesso || '').toLocaleLowerCase('pt-BR').includes('admin');
+    return {
+      id: u.idUsuario,
+      name,
+      email: u.email,
+      initials: this.createInitials(name),
+      role: isAdmin ? 'admin' : 'common'
+    };
+  }
+
+  private createInitials(name: string): string {
+    return name.split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part[0].toLocaleUpperCase('pt-BR')).join('');
+  }
+
   private createUserDraft(): NewUserDraft {
     return { name: '', email: '', password: '', role: 'common' };
   }
 
-  private setNotice(message: string): void {
+  private setNotice(message: string, isError = false): void {
     this.notice = message;
-    this.noticeIsError = false;
+    this.noticeIsError = isError;
   }
 }

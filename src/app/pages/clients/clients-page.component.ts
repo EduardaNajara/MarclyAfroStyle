@@ -1,4 +1,4 @@
-import { Component, HostListener } from '@angular/core';
+import { Component, HostListener, OnInit } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { Client } from '../../models/pages/client.model';
 import { ClientStoreService } from '../../services/client-store.service';
@@ -133,8 +133,10 @@ interface NewClientDraft {
                 }
               </div>
               <footer class="client-modal-actions">
-                <button type="button" class="secondary-button" (click)="closeClientForm()">Cancelar</button>
-                <button type="submit" class="primary-button">{{ editingClient ? 'Salvar Alterações' : 'Cadastrar' }}</button>
+                <button type="button" class="secondary-button" [disabled]="isSaving" (click)="closeClientForm()">Cancelar</button>
+                <button type="submit" class="primary-button" [disabled]="isSaving">
+                  {{ isSaving ? 'Salvando...' : (editingClient ? 'Salvar Alterações' : 'Cadastrar') }}
+                </button>
               </footer>
             </form>
           </section>
@@ -400,7 +402,7 @@ interface NewClientDraft {
     </section>
   `
 })
-export class ClientsPageComponent {
+export class ClientsPageComponent implements OnInit {
   readonly todayLabel = new Intl.DateTimeFormat('pt-BR', {
     day: '2-digit',
     month: 'long',
@@ -422,11 +424,23 @@ export class ClientsPageComponent {
 
   constructor(private readonly clientStore: ClientStoreService) {}
 
+  ngOnInit(): void {
+    this.clientStore.getClients().subscribe({
+      next: (dadosDaApi: any[]) => {
+        this.clients = dadosDaApi.map((cliente) => this.mapClienteFromApi(cliente));
+      },
+      error: (erro: any) => {
+        console.error('Erro ao carregar clientes do C#:', erro);
+      }
+    });
+  }
+
   activeFilter: ClientFilter = 'all';
   searchTerm = '';
   selectedLocation = '';
   currentPage = 1;
   isClientModalOpen = false;
+  isSaving = false;
   newClientError = '';
   newClient: NewClientDraft = this.createEmptyDraft();
   actionNotice = '';
@@ -504,7 +518,7 @@ export class ClientsPageComponent {
     this.editingClient = client;
     this.newClient = {
       name: client.name,
-      email: client.email,
+      email: client.email === 'Não informado' ? '' : client.email,
       phone: client.phone,
       location: client.location === 'Não informada' ? '' : client.location,
       birthDate: client.birthDate ?? '',
@@ -529,7 +543,7 @@ export class ClientsPageComponent {
 
   @HostListener('document:keydown.escape')
   closeClientFormOnEscape(): void {
-    if (this.isClientModalOpen) {
+    if (this.isClientModalOpen && !this.isSaving) {
       this.closeClientForm();
     } else if (this.selectedClient) {
       this.closeClientDetails();
@@ -547,58 +561,64 @@ export class ClientsPageComponent {
       return;
     }
 
-    const measurements = {
-      bust: this.newClient.bust,
-      waist: this.newClient.waist,
-      hip: this.newClient.hip,
-      length: this.newClient.length
+    const payload = {
+      nomeCompleto: name,
+      email: email || null,
+      telefone: phone,
+      localizacao: location || null,
+      dataNascimento: this.newClient.birthDate ? this.newClient.birthDate : null,
+      tecidoPreferencia: this.newClient.preferredFabric.trim() || null,
+      medidaBusto: this.newClient.bust ?? 0,
+      medidaCintura: this.newClient.waist ?? 0,
+      medidaQuadril: this.newClient.hip ?? 0,
+      medidaComprimento: this.newClient.length ?? 0,
+      observacoes: this.newClient.observations.trim() || null
     };
-    const hasCompleteMeasurements = Object.values(measurements).every((value) => value !== null && value > 0);
-    const hasAnyMeasurements = Object.values(measurements).some((value) => value !== null && value > 0);
-    const measurementStatus = hasCompleteMeasurements
-      ? 'Atualizadas'
-      : hasAnyMeasurements || this.editingClient?.measurements
-        ? 'Pendente Medição'
-        : this.editingClient?.measurementStatus ?? 'Pendente Medição';
-    const updatedFields = {
-      name,
-      email,
-      phone,
-      location: location || 'Não informada',
-      initials: this.createInitials(name),
-      measurementStatus,
-      birthDate: this.newClient.birthDate || undefined,
-      preferredFabric: this.newClient.preferredFabric.trim() || undefined,
-      measurements: hasAnyMeasurements ? measurements : undefined,
-      observations: this.newClient.observations.trim() || undefined
-    };
+
+    this.isSaving = true;
+    this.newClientError = '';
 
     if (this.editingClient) {
       const editingClientId = this.editingClient.id;
-      this.clients = this.clients.map((client) => client.id === editingClientId
-        ? { ...client, ...updatedFields }
-        : client);
-      this.currentPage = Math.min(this.currentPage, this.pageCount);
-      this.actionNotice = 'Dados da cliente atualizados com sucesso.';
+      this.clientStore.updateClient(editingClientId, payload).subscribe({
+        next: (clienteAtualizado) => {
+          const mapeada = this.mapClienteFromApi(clienteAtualizado);
+          this.clients = this.clients.map((client) =>
+            client.id === editingClientId
+              ? { ...mapeada, orders: client.orders, lastOrder: client.lastOrder, orderHistory: client.orderHistory }
+              : client
+          );
+          this.currentPage = Math.min(this.currentPage, this.pageCount);
+          this.actionNotice = 'Dados da cliente atualizados com sucesso.';
+          this.isSaving = false;
+          this.closeClientForm();
+        },
+        error: (erro) => {
+          console.error('Erro ao atualizar cliente:', erro);
+          this.newClientError = 'Não foi possível atualizar os dados no servidor.';
+          this.isSaving = false;
+        }
+      });
     } else {
-      this.clients = [{
-        id: Math.max(0, ...this.clients.map((client) => client.id)) + 1,
-        ...updatedFields,
-        orders: 0,
-        lastOrder: '—',
-        newThisMonth: true
-      }, ...this.clients];
-      this.activeFilter = 'all';
-      this.searchTerm = '';
-      this.selectedLocation = '';
-      this.currentPage = 1;
-      this.actionNotice = 'Cliente cadastrada com sucesso.';
+      this.clientStore.createClient(payload).subscribe({
+        next: (clienteCriada) => {
+          const mapeada = this.mapClienteFromApi(clienteCriada);
+          this.clients = [{ ...mapeada, newThisMonth: true }, ...this.clients];
+          this.activeFilter = 'all';
+          this.searchTerm = '';
+          this.selectedLocation = '';
+          this.currentPage = 1;
+          this.actionNotice = 'Cliente cadastrada com sucesso.';
+          this.isSaving = false;
+          this.closeClientForm();
+        },
+        error: (erro) => {
+          console.error('Erro ao cadastrar cliente:', erro);
+          this.newClientError = 'Não foi possível cadastrar a cliente no servidor.';
+          this.isSaving = false;
+        }
+      });
     }
-
-    this.newClient = this.createEmptyDraft();
-    this.isClientModalOpen = false;
-    this.editingClient = null;
-    this.newClientError = '';
   }
 
   showOrderNotice(client: Client): void {
@@ -630,6 +650,37 @@ export class ClientsPageComponent {
 
   getClientOrderTotal(client: Client): number {
     return (client.orderHistory ?? []).reduce((total, order) => total + order.value, 0);
+  }
+
+  private mapClienteFromApi(cliente: any): Client {
+    const bust = Number(cliente.medidaBusto ?? 0);
+    const waist = Number(cliente.medidaCintura ?? 0);
+    const hip = Number(cliente.medidaQuadril ?? 0);
+    const length = Number(cliente.medidaComprimento ?? 0);
+    const hasCompleteMeasurements = bust > 0 && waist > 0 && hip > 0 && length > 0;
+
+    const now = new Date();
+    const registoDate = cliente.dataRegisto ? new Date(cliente.dataRegisto) : null;
+    const isNewThisMonth = registoDate
+      ? registoDate.getMonth() === now.getMonth() && registoDate.getFullYear() === now.getFullYear()
+      : false;
+
+    return {
+      id: cliente.idCliente,
+      name: cliente.nomeCompleto,
+      email: cliente.email || 'Não informado',
+      phone: cliente.telefone || '',
+      location: cliente.localizacao || 'Não informada',
+      orders: cliente.pedidos?.length ?? 0,
+      initials: this.createInitials(cliente.nomeCompleto || ''),
+      lastOrder: '—',
+      measurementStatus: hasCompleteMeasurements ? 'Atualizadas' : 'Pendente Medição',
+      newThisMonth: isNewThisMonth,
+      birthDate: cliente.dataNascimento ? String(cliente.dataNascimento).split('T')[0] : '',
+      preferredFabric: cliente.tecidoPreferencia || '',
+      measurements: { bust, waist, hip, length },
+      observations: cliente.observacoes || ''
+    };
   }
 
   private createInitials(name: string): string {

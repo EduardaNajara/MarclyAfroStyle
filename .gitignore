@@ -1,13 +1,6 @@
-/node_modules
-/dist
-/out-tsc
-/.angular
-/coverage
-*.log
-
-# Bundles gerados por builds locais devem ficar fora da raiz do projeto.
-# Os arquivos publicados pelo GitHub Pages ficam organizados em src/assets.
-/chunk-*.js
-/main-*.js
-/polyfills-*.js
-/styles-*.css
+# .NET / Back-end
+bin/
+obj/
+.vs/
+*.user
+appsettings.Development.json

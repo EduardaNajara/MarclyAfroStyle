@@ -2,6 +2,7 @@ import { Component, inject } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import { LoginCredentials } from '../../models/pages/login.model';
+import { AuthService } from '../../services/auth.service';
 import { IconComponent } from '../../shared/icon/icon.component';
 
 @Component({
@@ -77,7 +78,7 @@ import { IconComponent } from '../../shared/icon/icon.component';
                 </button>
               </div>
               @if (showRecoveryNotice) {
-                <p class="login-recovery-message" role="status">A recuperação de senha não está disponível nesta demonstração.</p>
+                <p class="login-recovery-message" role="status">Solicite a redefinição de senha à administradora do ateliê em Configurações.</p>
               }
             </div>
 
@@ -94,17 +95,11 @@ import { IconComponent } from '../../shared/icon/icon.component';
               <p class="login-error" role="alert">{{ errorMessage }}</p>
             }
 
-            <button type="submit" class="login-submit">
-              <span>Entrar</span>
+            <button type="submit" class="login-submit" [disabled]="isLoading">
+              <span>{{ isLoading ? 'Entrando...' : 'Entrar' }}</span>
               <app-icon name="arrow-right" />
             </button>
           </form>
-
-          <aside class="login-demo" aria-label="Credenciais de demonstração">
-            <p class="login-demo-title">Acesso de demonstração</p>
-            <p>E-mail: <code>{{ demoCredentials.email }}</code></p>
-            <p>Senha: <code>{{ demoCredentials.password }}</code></p>
-          </aside>
         </section>
       </div>
     </main>
@@ -112,29 +107,39 @@ import { IconComponent } from '../../shared/icon/icon.component';
 })
 export class LoginPageComponent {
   private readonly router = inject(Router);
-
-  readonly demoCredentials = {
-    email: 'demo@marclyafrostyle.com.br',
-    password: 'MarclyDemo2026!'
-  };
+  private readonly authService = inject(AuthService);
 
   credentials: LoginCredentials = { email: '', password: '', remember: false };
   errorMessage = '';
   showPassword = false;
   showRecoveryNotice = false;
+  isLoading = false;
 
   login(): void {
-    const email = this.credentials.email.trim().toLowerCase();
-    const validCredentials =
-      email === this.demoCredentials.email &&
-      this.credentials.password === this.demoCredentials.password;
+    const email = this.credentials.email.trim();
+    const password = this.credentials.password;
 
-    if (!validCredentials) {
-      this.errorMessage = 'E-mail ou senha inválidos.';
+    if (!email || !password) {
+      this.errorMessage = 'Informe seu e-mail e senha.';
       return;
     }
 
+    this.isLoading = true;
     this.errorMessage = '';
-    void this.router.navigateByUrl('/inicio');
+
+    this.authService.login(email, password, this.credentials.remember).subscribe({
+      next: () => {
+        this.isLoading = false;
+        void this.router.navigateByUrl('/inicio');
+      },
+      error: (err) => {
+        this.isLoading = false;
+        if (err.status === 401 || err.status === 400) {
+          this.errorMessage = err.error?.message || 'E-mail ou senha inválidos.';
+        } else {
+          this.errorMessage = 'Não foi possível conectar ao servidor. Verifique se a API está ativa.';
+        }
+      }
+    });
   }
 }
